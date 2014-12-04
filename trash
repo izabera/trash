@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+# trash - bj izabera
+# also known as the less-portable-script-evur
+
+# ISC license
+# have fun
+
+# TODO: fix symlink issue
+#       list with parameters
+#       find a better way to create unique filenames
+
+mkdir ~/.trash
+shopt -s nullglob
+returnvalue=0
+
+printhelp () {
+  cat << EOF
+$0 is a trash bin utility.  If you use it instead of your regular rm,
+your files will be moved to $HOME/.trash for later use.
+Multiple files can be trashed with a single command.
+
+Usage: $0 [OPTION] [FILE] ...
+
+OPTION may be one of the following:
+
+  -h|--help                 print this help and exit
+  -l|--list                 list all files in your trash bin
+  -r|--restore NUMBER ...   restore files in their original path
+  -c|--clean                remove everything
+  -t|--trash FILE ...       trash files (default)
+EOF
+}
+
+[[ $# = 0 ]] && printhelp >&2 && exit 1
+
+case "$1" in
+
+  -h|--help)
+    printhelp && exit 0 ;;
+
+  -l|--list)
+    files=(~/.trash/*)
+    [[ ${#files[*]} = 0 ]] && echo "Recycle bin is empty" >&2 && exit 2
+    echo "Id           Date                    Filename"
+    num=0
+    for file in ~/.trash/* ; do
+      filename="${file:67}" #remove metadata
+      filename="$(base64 -d <<< "$filename")" #actual path+filename
+      filename="${filename##*/}"
+      datetime="${file:0:19}"
+      datetime="${datetime/-/ }"
+      printf "%05d     %s     %s\n" "$num" "$datetime" "$filename"
+      ((num++))
+    done
+    ;;
+
+  -r|--restore)
+    [[ $# = 1 ]] && echo "No file specified" >&2 && exit 3
+    files=(~/.trash/*)
+    [[ ${#files[*]} = 0 ]] && echo "Recycle bin is empty" >&2 && exit 2
+    shift
+    for (( i = 1; i < $#; i++ )) ; do
+      if printf "%d" "$1" &> /dev/null ; then
+        if [[ -n "${files[$1]}" ]] ; then
+          filename="${files[$1]}"
+          filename="${filename:67}"
+          filename="$(base64 -d <<< "$filename")"
+          directory="${filename%/*}"
+          if [[ -d "$directory" ]] ; then
+            if ! mv "${files[$1]}" "$directory" 2> /dev/null ; then
+              tempfile="$(mktemp "/tmp/${files[$1]}-XXXXXX")"
+              echo "Couldn't restore $1 in its path, saved it in $tempfile" >&2
+              returnvalue=6
+            fi
+          else
+            tempfile="$(mktemp "/tmp/${files[$1]}-XXXXXX")"
+            echo "Couldn't restore $1 in its path, saved it in $tempfile" >&2
+            returnvalue=7
+          fi
+        else
+          echo "Couldn't restore $1: file not found" >&2
+          returnvalue=5
+        fi
+      else
+        echo "Couldn't restore $1: not a number" >&2
+        returnvalue=2
+      fi
+    done
+    ;;
+
+  -c|--clean)
+    if ! rm -rf ~/.trash/* ; then
+      echo "Couldn't empty the trash bin" >&2
+      retunvalue=4
+    fi
+    ;;
+
+  -t|--trash)
+    shift ;&
+
+  *)
+    for (( i = 1; i < $#; i++ )) ; do
+      # hi, i'm an ugly hack, please kill me
+      if file="$(realpath -s "$2" 2> /dev/null)" ; then
+        read sha dummy <<< $(printf "$file" | sha1sum)
+        bfile=$(printf "$file" | base64)
+        datetime=$(date +%Y-%m-%d-%H-%M-%S)
+        if ! mv "$file" "$HOME/.trash/$datetime-$sha-$bfile" 2> /dev/null ; then
+        else
+          returnvalue=1
+          echo "Couldn't move $file to trash" >&2
+        fi
+        shift
+      else
+        returnvalue=1
+        echo "Couldn't read $2" >&2
+      fi
+    done
+    ;;
+esac
+
+exit $returnvalue

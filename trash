@@ -13,10 +13,11 @@
 # Disadvantages:
 # -  it looks stupid but there's no better way
 
-# TODO: fix symlink issue
-#       list with parameters
-#       find a better way to create unique filenames
-#       add option to display full path instead of basename
+# TODO:
+#    list with parameters
+#    find a better way to create unique filenames
+#    add option to display full path instead of basename
+
 
 mkdir -p ~/.trash
 shopt -s nullglob
@@ -57,7 +58,7 @@ case "$1" in
       filename="${file:61}" #remove metadata
       filename="$(printf %s "$filename" | tr _ / | base64 -d)" #actual path+filename
       filename="${filename##*/}"
-      datetime="${file:0:19}"
+      datetime="${file::19}"
       datetime="${datetime/_/ }"
       printf "%06d |    %s     | %s\n" "$num" "$datetime" "$filename"
       ((num++))
@@ -102,6 +103,7 @@ case "$1" in
         echo "Couldn't restore $1: not a number" >&2
         returnvalue=2
       fi
+      shift
     done
     ;;
 
@@ -122,9 +124,7 @@ case "$1" in
         read sha dummy <<< $(printf %s "$file" | sha1sum)
         bfile=$(printf %s "$file" | base64 -w 0 | tr / _)
         datetime=$(date +%Y-%m-%d_%H:%M:%S)
-        if mv "$file" "$HOME/.trash/$datetime-$sha-$bfile" 2> /dev/null ; then
-          :
-        else
+        if ! mv "$file" "$HOME/.trash/$datetime-$sha-$bfile" 2> /dev/null ; then
           echo "Couldn't move $file to trash" >&2
           returnvalue=1
         fi

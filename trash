@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 
-# trash - bj izabera
-# also known as the less-portable-script-evur
+# trash - by izabera
+# also known as the least-portable-script-evur
 
 # ISC license
 # have fun
 
+# The full path is base64'ed and then piped to  tr / _
+# Advantages:
+# -  it's possible to restore the file in the exact path it came from
+# -  this won't create new subdirectories in the .trash folder
+# Disadvantages:
+# -  it looks stupid but there's no better way
+
 # TODO: fix symlink issue
 #       list with parameters
 #       find a better way to create unique filenames
+#       add option to display full path instead of basename
 
 mkdir -p ~/.trash
 shopt -s nullglob
@@ -16,11 +24,11 @@ returnvalue=0
 
 printhelp () {
   cat << EOF
+Usage: $0 [OPTION] [FILE] ...
+
 $0 is a trash bin utility.  If you use it instead of your regular rm,
 your files will be moved to $HOME/.trash for later use.
 Multiple files can be trashed with a single command.
-
-Usage: $0 [OPTION] [FILE] ...
 
 OPTION may be one of the following:
 
@@ -47,7 +55,7 @@ case "$1" in
     for file in ~/.trash/* ; do
       file="${file##*/}"
       filename="${file:61}" #remove metadata
-      filename="$(base64 -d <<< "$filename")" #actual path+filename
+      filename="$(printf %s "$filename" | tr _ / | base64 -d)" #actual path+filename
       filename="${filename##*/}"
       datetime="${file:0:19}"
       datetime="${datetime/_/ }"
@@ -66,7 +74,7 @@ case "$1" in
         if [[ -n "${files[$1]}" ]] ; then
           filename="${files[$1]##*/}"
           filename="${filename:61}"
-          filename="$(base64 -d <<< "$filename")"
+          filename="$(printf %s "$filename" | tr _ / | base64 -d)"
           directory="${filename%/*}"
           if [[ -d "$directory" ]] ; then
             if [[ -f "$directory/${filename##*/}" ]] ; then
@@ -112,7 +120,7 @@ case "$1" in
       # hi, i'm an ugly hack, please kill me
       if file="$(realpath -s "$1" 2> /dev/null)" ; then
         read sha dummy <<< $(printf %s "$file" | sha1sum)
-        bfile=$(printf %s "$file" | base64)
+        bfile=$(printf %s "$file" | base64 -w 0 | tr / _)
         datetime=$(date +%Y-%m-%d_%H:%M:%S)
         if mv "$file" "$HOME/.trash/$datetime-$sha-$bfile" 2> /dev/null ; then
           :

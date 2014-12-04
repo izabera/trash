@@ -17,6 +17,7 @@
 #    list with parameters
 #    find a better way to create unique filenames
 #    add option to display full path instead of basename
+#    rc file (?)
 
 
 mkdir -p ~/.trash
@@ -28,8 +29,8 @@ printhelp () {
 Usage: $0 [OPTION] [FILE] ...
 
 $0 is a trash bin utility.  If you use it instead of your regular rm,
-your files will be moved to $HOME/.trash for later use.
-Multiple files can be trashed with a single command.
+your files will be moved to ~/.trash for later use.
+Multiple files can be trashed or restored with a single command.
 
 OPTION may be one of the following:
 
@@ -81,18 +82,18 @@ case "$1" in
             if [[ -f "$directory/${filename##*/}" ]] ; then
               tempfile="$(mktemp "/tmp/${files[$1]##*/}-XXXXXX")"
               echo "Couldn't restore $1 in its path, saved it in $tempfile" >&2
-              mv "${files[$1]}" "$tempfile"
+              mv -- "${files[$1]}" "$tempfile"
               returnvalue=8
-            elif ! mv "${files[$1]}" "$directory/${filename##*/}" 2> /dev/null ; then
+            elif ! mv -- "${files[$1]}" "$directory/${filename##*/}" 2> /dev/null ; then
               tempfile="$(mktemp "/tmp/${files[$1]##*/}-XXXXXX")"
               echo "Couldn't restore $1 in its path, saved it in $tempfile" >&2
-              mv "${files[$1]}" "$tempfile"
+              mv -- "${files[$1]}" "$tempfile"
               returnvalue=6
             fi
           else
             tempfile="$(mktemp "/tmp/${files[$1]##*/}-XXXXXX")"
             echo "Couldn't restore $1 in its path, saved it in $tempfile" >&2
-            mv "${files[$1]}" "$tempfile"
+            mv -- "${files[$1]}" "$tempfile"
             returnvalue=7
           fi
         else
@@ -114,7 +115,15 @@ case "$1" in
     fi
     ;;
 
-  -t|--trash)
+  # ugly workaround for --
+  -*)
+    if ! [[ $1 =~ ^-t|--trash|--$ ]] ; then
+      printhelp >&2
+      exit 10
+    fi
+    ;;&
+
+  -t|--trash|--)
     shift ;&
 
   *)
@@ -124,7 +133,7 @@ case "$1" in
         read sha dummy <<< $(printf %s "$file" | sha1sum)
         bfile=$(printf %s "$file" | base64 -w 0 | tr / _)
         datetime=$(date +%Y-%m-%d_%H:%M:%S)
-        if ! mv "$file" "$HOME/.trash/$datetime-$sha-$bfile" 2> /dev/null ; then
+        if ! mv -- "$file" "$HOME/.trash/$datetime-$sha-$bfile" 2> /dev/null ; then
           echo "Couldn't move $file to trash" >&2
           returnvalue=1
         fi

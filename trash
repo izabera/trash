@@ -14,19 +14,27 @@
 # -  it looks stupid but there's no better way
 
 # TODO:
-#    list with parameters
+#    trash directories
 #    find a better way to create unique filenames
-#    add option to display full path instead of basename
 #    rc file (?)
+#    tidy up this mess of return codes
 
 
-mkdir -p ~/.trash
+fullpath=no
+listheaders=yes
+overwritefiles=no
+recreatepath=no
+
+source ~/.trashrc 2> /dev/null
+
+mkdir -p ~/.trash # FIXME: users should configure this
+
 shopt -s nullglob
 returnvalue=0
 
 printhelp () {
   cat << EOF
-Usage: $0 [OPTION] [FILE] ...
+Usage: $0 [OPTION] [FILE|NUMBER]...
 
 $0 is a trash bin utility.  If you use it instead of your regular rm,
 your files will be moved to ~/.trash for later use.
@@ -36,9 +44,10 @@ OPTION may be one of the following:
 
   -h|--help                 print this help and exit
   -l|--list                 list all files in your trash bin
-  -r|--restore NUMBER ...   restore files in their original path
-  -c|--clean                remove everything
-  -t|--trash FILE ...       trash files (default)
+  -r|--restore NUMBER...    restore files in their original path
+  -c|--clean [NUMBER]...    remove (everything if NUMBER is not specified)
+  -t|--trash FILE...        trash files (default)
+
 EOF
 }
 
@@ -52,13 +61,20 @@ case "$1" in
   -l|--list)
     files=(~/.trash/*)
     [[ ${#files[*]} = 0 ]] && echo "Recycle bin is empty" >&2 && exit 2
-    echo "  Id   | Date (YYYY-mm-dd HH:MM:SS) | Filename"
+    if [[ $listheaders = yes ]] ; then 
+      if [[ $fullpath = yes ]] ; then
+        echo "  Id   | Date (YYYY-mm-dd HH:MM:SS) | Path"
+      else
+        echo "  Id   | Date (YYYY-mm-dd HH:MM:SS) | Filename"
+      fi
+      echo "-------+----------------------------+-------------"
+    fi
     num=0
     for file in ~/.trash/* ; do
       file="${file##*/}"
       filename="${file:61}" #remove metadata
       filename="$(printf %s "$filename" | tr _ / | base64 -d)" #actual path+filename
-      filename="${filename##*/}"
+      [[ $fullpath = no ]] && filename="${filename##*/}"
       datetime="${file::19}"
       datetime="${datetime/_/ }"
       printf "%06d |    %s     | %s\n" "$num" "$datetime" "$filename"
@@ -82,6 +98,8 @@ case "$1" in
             if [[ -f "$directory/${filename##*/}" ]] ; then
               tempfile="$(mktemp "/tmp/${files[$1]##*/}-XXXXXX")"
               echo "Couldn't restore $1 in its path, saved it in $tempfile" >&2
+              # adding -- after each mv for forward compatibility
+              # == when i'll edit stuff but i'll be lazy and i'll forget to check
               mv -- "${files[$1]}" "$tempfile"
               returnvalue=8
             elif ! mv -- "${files[$1]}" "$directory/${filename##*/}" 2> /dev/null ; then
@@ -109,9 +127,20 @@ case "$1" in
     ;;
 
   -c|--clean)
-    if ! rm -rf ~/.trash/* ; then
-      echo "Couldn't empty the trash bin" >&2
-      returnvalue=4
+    if [[ $# = 1 ]] ; then
+      if ! rm -rf ~/.trash/* ; then
+        echo "Couldn't empty the trash bin" >&2
+        returnvalue=4
+      fi
+    else
+      shift
+      files=(~/.trash/*)
+      for (( i = 0; i < $#; i++ )) ; do
+        if ! rm -- "${files[$i]}" 2> /dev/null ; then
+          echo "Couldn't remove $i" >&2
+          returnvalue=11
+        fi
+      done
     fi
     ;;
 
@@ -123,6 +152,7 @@ case "$1" in
     fi
     ;;&
 
+  # yay for unnecessary options
   -t|--trash|--)
     shift ;&
 
@@ -147,3 +177,4 @@ case "$1" in
 esac
 
 exit $returnvalue
+

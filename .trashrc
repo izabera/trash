@@ -1,0 +1,22 @@
+########################################################
+# .trashrc
+#
+# This file is sourced from your home directory
+########################################################
+
+########################################################
+# LISTING
+########################################################
+# display headers
+listheaders=yes
+# display full path or basename only
+fullpath=no
+
+########################################################
+# RESTORING (tbd)
+########################################################
+# overwrite existing files
+overwritefiles=no
+# recreate paths that don't exist anymore
+recreatepath=no
+

@@ -1,7 +1,9 @@
-Trash
+trash
 =====
 
-Trash is a trash bin utility.  If you use it instead of your regular rm,
+Usage: trash [OPTION] [FILE] ...
+
+trash is a trash bin utility.  If you use it instead of your regular rm,
 your files will be moved to ~/.trash for later use.
 Multiple files can be trashed or restored with a single command.
 
